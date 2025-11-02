@@ -1,8 +1,8 @@
-const Server = require('./server')
-const Client = require('./client')
+import Server from './server.js'
+import Client from './client.js'
 
 // Combine Server and Client
-exports = module.exports = function Jobs (db, worker, options) {
+export default function Jobs (db, worker, options) {
   return mixin(Server(db, worker, options), Client.Queue.prototype)
 }
 

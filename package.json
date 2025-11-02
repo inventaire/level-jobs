@@ -3,6 +3,7 @@
   "version": "2.1.1",
   "description": "Job Queue in LevelDB",
   "main": "index.js",
+  "type": "module",
   "browser": "client.js",
   "scripts": {
     "test": "tap tests/test.js tests/client.js"
@@ -33,14 +34,16 @@
     "backoff": "~2.3.0",
     "json-stringify-safe": "~5.0.0",
     "level-hooks": "~4.5.0",
+    "level-read-stream": "^2.0.0",
     "level-sublevel": "~6.4.6",
-    "level-write-stream": "~1.0.0",
-    "xtend": "~2.0.6"
+    "level-write-stream": "~1.0.0"
   },
   "devDependencies": {
-    "level": "~1.3.0",
-    "tap": "~0.4.4",
-    "rimraf": "~2.2.2",
-    "async": "*"
+    "@types/backoff": "^2.5.5",
+    "@types/node": "^24.9.2",
+    "@types/readable-stream": "^4.0.22",
+    "async": "^3.2.6",
+    "memory-level": "^1.0.0",
+    "tap": "^0.4.13"
   }
 }

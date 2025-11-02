@@ -1,12 +1,11 @@
-const assert = require('assert')
-const inherits = require('util').inherits
-const EventEmitter = require('events').EventEmitter
-const Sublevel = require('level-sublevel')
-const stringify = require('json-stringify-safe')
-const xtend = require('xtend')
-const timestamp = require('./timestamp')
+import assert from 'node:assert'
+import { inherits } from 'node:util'
+import { EventEmitter } from 'node:events'
+import stringify from 'json-stringify-safe'
+import { timestamp } from './timestamp.js'
+import { EntryStream } from 'level-read-stream'
 
-exports = module.exports = ClientQueue
+export default ClientQueue
 
 function ClientQueue (db, worker, options) {
   assert.strictEqual(typeof db, 'object', 'need db')
@@ -20,7 +19,7 @@ ClientQueue.Queue = Queue
 function Queue (db) {
   EventEmitter.call(this)
 
-  this._db = db = Sublevel(db)
+  this._db = db
   this._pending = db.sublevel('pending')
   this._work = db.sublevel('work')
 }
@@ -91,14 +90,14 @@ Q.delBatch = function del (ids, cb) {
 
 Q.pendingStream = function pendingStream (options) {
   if (!options) options = {}
-  else options = xtend({}, options)
+  else options = { ...options }
   options.valueEncoding = 'json'
-  return this._pending.createReadStream(options)
+  return new EntryStream(this._pending, options)
 }
 
 Q.runningStream = function runningStream (options) {
   if (!options) options = {}
-  else options = xtend({}, options)
+  else options = { ...options }
   options.valueEncoding = 'json'
-  return this._work.createReadStream(options)
+  return new EntryStream(this._work, options)
 }

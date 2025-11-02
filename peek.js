@@ -1,4 +1,6 @@
-module.exports = peek
+import { EntryStream } from 'level-read-stream'
+
+export default peek
 
 function peek (db, cb) {
   let calledback = false
@@ -9,7 +11,7 @@ function peek (db, cb) {
     }
   }
 
-  const s = db.createReadStream({ limit: 1 })
+  const s = new EntryStream(db, { limit: 1 })
 
   s.on('error', callback)
   s.once('end', callback)

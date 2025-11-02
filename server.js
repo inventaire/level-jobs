@@ -1,12 +1,11 @@
-const assert = require('assert')
-const inherits = require('util').inherits
-const EventEmitter = require('events').EventEmitter
-const Sublevel = require('level-sublevel')
-const backoff = require('backoff')
-const xtend = require('xtend')
-const Hooks = require('level-hooks')
-const WriteStream = require('level-write-stream')
-const peek = require('./peek')
+import assert from 'node:assert'
+import { inherits } from 'node:util'
+import { EventEmitter } from 'node:events'
+import backoff from 'backoff'
+import Hooks from 'level-hooks'
+import WriteStream from 'level-write-stream'
+import peek from './peek.js'
+import { EntryStream } from 'level-read-stream'
 
 const defaultOptions = {
   maxConcurrency: Infinity,
@@ -18,7 +17,7 @@ const defaultOptions = {
   }
 }
 
-exports = module.exports = Jobs
+export default Jobs
 
 function Jobs (db, worker, options) {
   assert.strictEqual(typeof db, 'object', 'need db')
@@ -29,15 +28,16 @@ function Jobs (db, worker, options) {
 
 Jobs.Queue = Queue
 
-function Queue (db, worker, options) {
+function Queue (db, worker, options = {}) {
   const q = this
   EventEmitter.call(this)
 
-  if (typeof options == 'number') options = { maxConcurrency: options }
-  options = xtend(defaultOptions, options)
+  if (typeof options === 'number') options = { maxConcurrency: options }
+  options.backoff = { ...defaultOptions.backoff, ...(options.backoff || {}) }
+  options = Object.assign(defaultOptions, options)
 
   this._options = options
-  this._db = db = Sublevel(db)
+  this._db = db
   this._work = db.sublevel('work')
   this._workWriteStream = WriteStream(this._work)
   this._pending = db.sublevel('pending')
@@ -66,7 +66,7 @@ inherits(Queue, EventEmitter)
 
 function start (q) {
   const ws = q._workWriteStream()
-  q._pending.createReadStream().pipe(ws)
+  new EntryStream(q._pending).pipe(ws)
   ws.once('finish', done)
 
   function done () {
@@ -97,9 +97,11 @@ function flush (q) {
 
     if (key) {
       q._concurrency++
+      // Using abstract-level >= v1 built in sublevel
+      // See https://github.com/Level/abstract-level/blob/main/UPGRADING.md#9-sublevels-are-builtin
       q._db.batch([
-        { type: 'del', key, prefix: q._work },
-        { type: 'put', key, value: work, prefix: q._pending }
+        { type: 'del', key, sublevel: q._work },
+        { type: 'put', key, value: work, sublevel: q._pending }
       ], transfered)
     } else {
       q._flushing = false
