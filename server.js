@@ -85,6 +85,8 @@ function maybeFlush (q) {
 /// flush
 
 function flush (q) {
+  if(q._db.status !== 'open') return
+
   if (q._concurrency < q._options.maxConcurrency && !q._peeking) {
     q._peeking = true
     q._flushing = true
@@ -93,6 +95,11 @@ function flush (q) {
 
   function poke (err, key, work) {
     q._peeking = false
+    if (err) {
+      if (err.code === 'LEVEL_DATABASE_NOT_OPEN' || err.code === 'LEVEL_ITERATOR_NOT_OPEN') return
+      else return q.emit('error', err)
+    }
+
     let done = false
 
     if (key) {

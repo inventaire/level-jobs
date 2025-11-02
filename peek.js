@@ -11,13 +11,17 @@ function peek (db, cb) {
     }
   }
 
-  const s = new EntryStream(db, { limit: 1 })
+  try {
+    const s = new EntryStream(db, { limit: 1 })
 
-  s.on('error', callback)
-  s.once('end', callback)
+    s.on('error', callback)
+    s.once('end', callback)
 
-  s.once('data', d => {
-    if (d) callback(null, d.key, d.value)
-    else callback()
-  })
+    s.once('data', d => {
+      if (d) callback(null, d.key, d.value)
+      else callback()
+    })
+  } catch (err) {
+    callback(err)
+  }
 }
