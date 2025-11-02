@@ -42,8 +42,7 @@
     "@types/backoff": "^2.5.5",
     "@types/node": "^24.9.2",
     "@types/readable-stream": "^4.0.22",
-    "async": "^3.2.6",
     "memory-level": "^1.0.0",
-    "tap": "^0.4.13"
+    "tap": "^21.1.3"
   }
 }

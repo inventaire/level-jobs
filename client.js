@@ -1,9 +1,9 @@
 import assert from 'node:assert'
-import { inherits } from 'node:util'
 import { EventEmitter } from 'node:events'
+import { inherits } from 'node:util'
 import stringify from 'json-stringify-safe'
-import { timestamp } from './timestamp.js'
 import { EntryStream } from 'level-read-stream'
+import { timestamp } from './timestamp.js'
 
 export default ClientQueue
 
@@ -28,27 +28,13 @@ inherits(Queue, EventEmitter)
 
 const Q = Queue.prototype
 
-/// push
-
-Q.push = function push (payload, cb) {
-  const q = this
+Q.push = async function push (payload) {
   const id = timestamp()
-  this._work.put(id, stringify(payload), put)
-
+  await this._work.put(id, stringify(payload))
   return id
-
-  function put (err) {
-    if (err) {
-      if (cb) cb(err)
-      else q.emit('error', err)
-    } else if (cb) cb()
-  }
 }
 
-/// pushBatch
-
-Q.pushBatch = function push (payloads, cb) {
-  const q = this
+Q.pushBatch = async function pushBatch (payloads) {
   const ids = []
 
   const ops = payloads.map(payload => {
@@ -57,35 +43,24 @@ Q.pushBatch = function push (payloads, cb) {
     return {
       type: 'put',
       key: id,
-      value: stringify(payload)
+      value: stringify(payload),
     }
   })
 
-  this._work.batch(ops, batch)
+  await this._work.batch(ops)
 
   return ids
-
-  function batch (err) {
-    if (err) {
-      if (cb) cb(err)
-      else q.emit('error', err)
-    } else if (cb) cb()
-  }
 }
 
-/// del
-
-Q.del = function del (id, cb) {
-  this._work.del(id, cb)
+Q.del = async function del (id) {
+  return this._work.del(id)
 }
 
-/// delBatch
-
-Q.delBatch = function del (ids, cb) {
+Q.delBatch = async function del (ids) {
   const ops = ids.map(id => {
     return { type: 'del', key: id }
   })
-  this._work.batch(ops, cb)
+  return this._work.batch(ops)
 }
 
 Q.pendingStream = function pendingStream (options) {

@@ -1,59 +1,52 @@
+import assert from 'node:assert'
 import t from 'tap'
-import async from 'async'
 import Jobs from '../index.js'
-import { testLevel } from './utils.js'
+import { testLevel, defer, wait } from './utils.js'
 
-const { test } = t
-
-test('passes job id into worker fn', function (t) {
+t.test('passes job id into worker fn', async t => {
   const db = testLevel()
 
   const queue = Jobs(db, worker)
-  const jobId = queue.push({ foo: 'bar' }, t.ifError.bind(t))
+  const jobId = await queue.push({ foo: 'bar' })
 
-  function worker (id, work, cb) {
+  const { promise, resolve } = defer()
+
+  function worker (id) {
     t.equal(id, jobId + '')
-    t.end()
-  };
+    resolve()
+  }
+
+  await promise
 })
 
-test('infinite concurrency', function (t) {
+t.test('infinite concurrency', async t => {
   const db = testLevel()
 
   const max = 10
   const queue = Jobs(db, worker)
 
   for (let i = 1; i <= max; i++) {
-    queue.push({ n: i }, pushed)
-  }
-
-  function pushed (err) {
-    if (err) throw err
+    queue.push({ n: i })
   }
 
   let count = 0
-  const cbs = []
-  function worker (id, work, cb) {
+  function worker (id, payload) {
     count++
-    t.equal(work.n, count)
-    cbs.push(cb)
-    if (count == max) callback()
-  };
-
-  function callback () {
-    while (cbs.length) cbs.shift()()
+    t.equal(payload.n, count)
   }
-  queue.on('drain', function () {
-    if (count == max) {
-      t.equal(cbs.length, 0)
+
+  const { promise, resolve } = defer()
+  queue.on('drain', () => {
+    if (count === max) {
       t.equal(queue._concurrency, 0)
-      db.once('closed', t.end.bind(t))
+      db.once('closed', resolve)
       db.close()
     }
   })
+  await promise
 })
 
-test('concurrency of 1', function (t) {
+t.test('concurrency of 1', async t => {
   const db = testLevel()
 
   const max = 10
@@ -61,274 +54,231 @@ test('concurrency of 1', function (t) {
   const queue = Jobs(db, worker, concurrency)
 
   for (let i = 1; i <= max; i++) {
-    queue.push({ n: i }, pushed)
-  }
-
-  function pushed (err) {
-    if (err) throw err
+    await queue.push({ n: i })
   }
 
   let count = 0
   let working = false
-  function worker (id, work, cb) {
+  async function worker (id, payload) {
     t.notOk(working, 'should not be concurrent')
     count++
     working = true
-    t.equal(work.n, count)
-    setTimeout(function () {
-      working = false
-      cb()
-    }, 100)
-  };
+    t.equal(payload.n, count)
+    await wait(100)
+    working = false
+  }
 
-  queue.on('drain', function () {
-    if (count == max) {
+  const { promise, resolve } = defer()
+  queue.on('drain', () => {
+    if (count === max) {
       t.equal(queue._concurrency, 0)
-      db.once('closed', t.end.bind(t))
+      db.once('closed', resolve)
       db.close()
     }
   })
+  await promise
 })
 
-test('retries on error', function (t) {
+t.test('retries on error', async t => {
   const db = testLevel()
 
   const max = 10
   const queue = Jobs(db, worker)
 
   for (let i = 1; i <= max; i++) {
-    queue.push({ n: i }, pushed)
-  }
-
-  function pushed (err) {
-    if (err) throw err
+    await queue.push({ n: i })
   }
 
   const erroredOn = {}
   let count = 0
-  let working = false
-  function worker (id, work, cb) {
+  function worker (id, payload) {
     count++
-    if (!erroredOn[work.n]) {
-      erroredOn[work.n] = true
-      cb(new Error('oops!'))
-    } else {
-      working = true
-      cb()
+    if (!erroredOn[payload.n]) {
+      erroredOn[payload.n] = true
+      throw new Error('oops!')
     }
-  };
+  }
 
-  queue.on('drain', function () {
-    if (count == max * 2) {
+  const { promise, resolve } = defer()
+  queue.on('drain', () => {
+    if (count === max * 2) {
       t.equal(queue._concurrency, 0)
-      db.once('closed', t.end.bind(t))
-      db.close()
+      resolve()
     }
   })
+  await promise
 })
 
-test('emits retry event on retry', function (t) {
+t.test('emits retry event on retry', async () => {
   const db = testLevel()
   const queue = Jobs(db, worker)
 
-  queue.on('error', Function())
-
-  queue.once('retry', function (err) {
-    db.once('closed', t.end.bind(t))
-    db.close()
+  function worker () {
+    throw new Error('oops!')
+  }
+  const { promise, resolve, reject } = defer()
+  queue.on('error', reject)
+  queue.once('retry', err => {
+    t.ok(err)
+    resolve()
   })
-
-  function worker (id, work, cb) {
-    cb(new Error('oops!'))
-  };
-
   queue.push({ foo: 'bar' })
+  await promise
 })
 
-test('works with no push callback', function (t) {
+t.test('has exponential backoff in case of error', async t => {
   const db = testLevel()
   const jobs = Jobs(db, worker)
 
-  function worker (id, payload, done) {
-    done()
-    process.nextTick(function () {
-      db.once('closed', t.end.bind(t))
-      db.close()
-    })
-  };
+  function worker () {
+    throw new Error('Oh no!')
+  }
 
-  jobs.push({ foo: 'bar' })
-})
+  await jobs.push({ foo: 'bar' })
 
-test('has exponential backoff in case of error', function (t) {
-  const db = testLevel()
-  const jobs = Jobs(db, worker)
-
-  function worker (id, payload, done) {
-    done(new Error('Oh no!'))
-  };
-
-  jobs.once('error', function (err) {
+  const { promise, resolve } = defer()
+  jobs.once('error', err => {
     t.equal(err.message, 'max retries reached')
-    db.once('closed', t.end.bind(t))
-    db.close()
+    resolve()
   })
-
-  jobs.push({ foo: 'bar' })
+  await promise
 })
 
-test('can delete job', function (t) {
+t.test('can delete job', async t => {
   const db = testLevel()
   const jobs = Jobs(db, worker)
 
   let processed = 0
 
-  function worker (id, payload, done) {
+  const { promise, resolve } = defer()
+  async function worker () {
     processed += 1
     t.ok(processed <= 1, 'worker is not called 2 times')
+    await jobs.del(job2Id)
+    resolve()
+  }
 
-    jobs.del(job2Id, function (err) {
-      if (err) throw err
-      done()
-    })
-
-    setTimeout(function () {
-      db.once('closed', t.end.bind(t))
-      db.close()
-    }, 500)
-  };
-
-  const job1Id = jobs.push({ foo: 'bar', seq: 1 })
+  const job1Id = await jobs.push({ foo: 'bar', seq: 1 })
   t.type(job1Id, 'number')
-  var job2Id = jobs.push({ foo: 'bar', seq: 2 })
+  const job2Id = await jobs.push({ foo: 'bar', seq: 2 })
   t.type(job2Id, 'number')
+
+  await promise
 })
 
-test('can get runningStream & pendingStream', function (t) {
+t.test('can get runningStream & pendingStream', async t => {
   const db = testLevel()
   const jobs = Jobs(db, worker)
 
-  const works = [
+  const payloads = [
     { foo: 'bar', seq: 1 },
     { foo: 'bar', seq: 2 },
-    { foo: 'bar', seq: 3 }
+    { foo: 'bar', seq: 3 },
   ]
 
-  const workIds = []
+  const workIds = await Promise.all(payloads.map(async payload => {
+    const jobId = await jobs.push(payload)
+    return jobId.toString()
+  }))
 
-  async.each(works, insert, doneInserting)
+  jobs.runningStream().on('data', onData)
+  jobs.pendingStream().on('data', onData)
 
-  function insert (work, done) {
-    workIds.push(jobs.push(work, done).toString())
-  }
+  const { promise, resolve } = defer()
 
-  function doneInserting (err) {
-    if (err) throw err
+  let seq = -1
+  function onData (d) {
+    seq += 1
 
-    jobs.runningStream().on('data', onData)
-    jobs.pendingStream().on('data', onData)
+    const id = d.key
+    const payload = d.value
+    t.equal(id, workIds[seq])
+    const expected = payloads[seq]
 
-    let seq = -1
-    function onData (d) {
-      seq += 1
-
-      const id = d.key
-      const work = d.value
-      t.equal(id, workIds[seq])
-      const expected = works[seq]
-
-      t.deepEqual(work, expected)
-      if (seq == works.length - 1) {
-        process.nextTick(function () {
-          db.once('closed', t.end.bind(t))
-          db.close()
-        })
-      }
+    assert.deepEqual(payload, expected)
+    if (seq === payloads.length - 1) {
+      resolve()
     }
   }
 
-  function worker (id, payload, done) {
+  function worker () {
     // do nothing
-  };
+  }
+
+  await promise
 })
 
-test('doesn\'t skip past failed tasks', function (t) {
+t.test('doesn\'t skip past failed tasks', async t => {
   const db = testLevel()
 
   const max = 10
   const queue = Jobs(db, worker, 1)
 
   for (let i = 1; i <= max; i++) {
-    queue.push({ n: i }, pushed)
-  }
-
-  function pushed (err) {
-    if (err) throw err
+    await queue.push({ n: i })
   }
 
   const erroredOn = {}
   let count = 0
   let next = 1
-  let working = false
-  function worker (id, work, cb) {
+  function worker (id, payload) {
     // fail every other one
-    if (work.n % 2 && !erroredOn[work.n]) {
-      erroredOn[work.n] = true
-      cb(new Error('oops!'))
+    if (payload.n % 2 && !erroredOn[payload.n]) {
+      erroredOn[payload.n] = true
+      throw new Error('oops!')
     } else {
       count++
-      working = true
-      t.equal(next++, work.n)
-      cb()
+      t.equal(next++, payload.n)
     }
-  };
+  }
 
-  queue.on('drain', function () {
+  const { promise, resolve } = defer()
+  queue.on('drain', () => {
     if (count === max) {
       t.equal(queue._concurrency, 0)
-      db.once('closed', t.end.bind(t))
-      process.nextTick(function () {
-        db.close()
-      })
+      resolve()
     }
   })
+  await promise
 })
 
-test('continues after close and reopen', function (t) {
+t.test('continues after close and reopen', async t => {
   let db = testLevel()
 
   const max = 10
   const restartAfter = max / 2 | 0
-  let queue = Jobs(db, worker, 1)
 
-  for (let i = 1; i <= max; i++) {
-    queue.push({ n: i }, pushed)
-  }
-
-  function pushed (err) {
-    if (err) throw err
-  }
+  const { promise, resolve } = defer()
 
   let count = 0
-  function worker (id, work, cb) {
+  function worker (id, payload) {
     count++
-    t.equal(work.n, count)
-    cb()
+    t.equal(payload.n, count)
+    afterWorker()
+  }
 
+  let queue = Jobs(db, worker, 1)
+  for (let i = 1; i <= max; i++) {
+    await queue.push({ n: i })
+  }
+
+  function afterWorker () {
     if (count === restartAfter) {
-      db.close(function () {
+      db.close(() => {
         db = testLevel()
         queue = Jobs(db, worker, 1)
-        queue.on('drain', function () {
+        queue.on('drain', () => {
           if (count === max) {
             t.equal(queue._concurrency, 0)
-            db.once('closed', t.end.bind(t))
-            process.nextTick(function () {
+            db.once('closed', resolve)
+            process.nextTick(() => {
               db.close()
             })
           }
         })
       })
     }
-  };
+  }
+
+  await promise
 })
