@@ -1,350 +1,334 @@
-var test   = require('tap').test;
-var rimraf = require('rimraf');
-var level  = require('level');
-var async  = require('async');
-var Jobs   = require('../');
+import t from 'tap'
+import async from 'async'
+import Jobs from '../index.js'
+import { testLevel } from './utils.js'
 
-var dbPath = __dirname + '/db';
+const { test } = t
 
-test('passes job id into worker fn', function(t) {
-  rimraf.sync(dbPath);
-  var db = level(dbPath);
+test('passes job id into worker fn', function (t) {
+  const db = testLevel()
 
-  var queue = Jobs(db, worker);
-  var jobId = queue.push({foo: 'bar'}, t.ifError.bind(t));
+  const queue = Jobs(db, worker)
+  const jobId = queue.push({ foo: 'bar' }, t.ifError.bind(t))
 
-  function worker(id, work, cb) {
-    t.equal(id, jobId + '');
-
-    db.once('closed', t.end.bind(t));
-    db.close();
+  function worker (id, work, cb) {
+    t.equal(id, jobId + '')
+    t.end()
   };
-});
+})
 
-test('infinite concurrency', function(t) {
+test('infinite concurrency', function (t) {
+  const db = testLevel()
 
-  rimraf.sync(dbPath);
-  var db = level(dbPath);
+  const max = 10
+  const queue = Jobs(db, worker)
 
-  var max = 10;
-  var queue = Jobs(db, worker);
-
-  for (var i = 1 ; i <= max ; i ++) {
-    queue.push({n:i}, pushed);
+  for (let i = 1; i <= max; i++) {
+    queue.push({ n: i }, pushed)
   }
 
-  function pushed(err) {
-    if (err) throw err;
+  function pushed (err) {
+    if (err) throw err
   }
 
-  var count = 0;
-  var cbs = [];
-  function worker(id, work, cb) {
-    count ++;
-    t.equal(work.n, count);
-    cbs.push(cb);
-    if (count == max) callback();
+  let count = 0
+  const cbs = []
+  function worker (id, work, cb) {
+    count++
+    t.equal(work.n, count)
+    cbs.push(cb)
+    if (count == max) callback()
   };
 
-  function callback() {
-    while(cbs.length) cbs.shift()();
+  function callback () {
+    while (cbs.length) cbs.shift()()
   }
-  queue.on('drain', function() {
+  queue.on('drain', function () {
     if (count == max) {
-      t.equal(cbs.length, 0);
-      t.equal(queue._concurrency, 0);
-      db.once('closed', t.end.bind(t));
-      console.log('CLOSING');
-      db.close();
+      t.equal(cbs.length, 0)
+      t.equal(queue._concurrency, 0)
+      db.once('closed', t.end.bind(t))
+      db.close()
     }
-  });
-});
+  })
+})
 
-test('concurrency of 1', function(t) {
+test('concurrency of 1', function (t) {
+  const db = testLevel()
 
-  rimraf.sync(dbPath);
-  var db = level(dbPath);
+  const max = 10
+  const concurrency = 1
+  const queue = Jobs(db, worker, concurrency)
 
-  var max = 10;
-  var concurrency = 1;
-  var queue = Jobs(db, worker, concurrency);
-
-  for (var i = 1 ; i <= max ; i ++) {
-    queue.push({n:i}, pushed);
+  for (let i = 1; i <= max; i++) {
+    queue.push({ n: i }, pushed)
   }
 
-  function pushed(err) {
-    if (err) throw err;
+  function pushed (err) {
+    if (err) throw err
   }
 
-  var count = 0;
-  var working = false;
-  function worker(id, work, cb) {
-    t.notOk(working, 'should not be concurrent');
-    count ++;
-    working = true;
-    t.equal(work.n, count);
-    setTimeout(function() {
-      working = false;
-      cb();
-    }, 100);
+  let count = 0
+  let working = false
+  function worker (id, work, cb) {
+    t.notOk(working, 'should not be concurrent')
+    count++
+    working = true
+    t.equal(work.n, count)
+    setTimeout(function () {
+      working = false
+      cb()
+    }, 100)
   };
 
-  queue.on('drain', function() {
+  queue.on('drain', function () {
     if (count == max) {
-      t.equal(queue._concurrency, 0);
-      db.once('closed', t.end.bind(t));
-      db.close();
+      t.equal(queue._concurrency, 0)
+      db.once('closed', t.end.bind(t))
+      db.close()
     }
-  });
-});
+  })
+})
 
-test('retries on error', function(t) {
-  rimraf.sync(dbPath);
-  var db = level(dbPath);
+test('retries on error', function (t) {
+  const db = testLevel()
 
-  var max = 10;
-  var queue = Jobs(db, worker);
+  const max = 10
+  const queue = Jobs(db, worker)
 
-  for (var i = 1 ; i <= max ; i ++) {
-    queue.push({n:i}, pushed);
+  for (let i = 1; i <= max; i++) {
+    queue.push({ n: i }, pushed)
   }
 
-  function pushed(err) {
-    if (err) throw err;
+  function pushed (err) {
+    if (err) throw err
   }
 
-  var erroredOn = {};
-  var count = 0;
-  function worker(id, work, cb) {
-    count ++;
+  const erroredOn = {}
+  let count = 0
+  let working = false
+  function worker (id, work, cb) {
+    count++
     if (!erroredOn[work.n]) {
-      erroredOn[work.n] = true;
-      cb(new Error('oops!'));
+      erroredOn[work.n] = true
+      cb(new Error('oops!'))
     } else {
-      working = true;
-      cb();
+      working = true
+      cb()
     }
   };
 
-  queue.on('drain', function() {
+  queue.on('drain', function () {
     if (count == max * 2) {
-      t.equal(queue._concurrency, 0);
-      db.once('closed', t.end.bind(t));
-      db.close();
+      t.equal(queue._concurrency, 0)
+      db.once('closed', t.end.bind(t))
+      db.close()
     }
-  });
-});
+  })
+})
 
-test('emits retry event on retry', function(t) {
-  rimraf.sync(dbPath);
-  var db = level(dbPath);
-  var queue = Jobs(db, worker);
+test('emits retry event on retry', function (t) {
+  const db = testLevel()
+  const queue = Jobs(db, worker)
 
-  queue.on('error', Function());
+  queue.on('error', Function())
 
-  queue.once('retry', function(err) {
-    db.once('closed', t.end.bind(t));
-    db.close();
-  });
+  queue.once('retry', function (err) {
+    db.once('closed', t.end.bind(t))
+    db.close()
+  })
 
-  function worker(id, work, cb) {
-    cb(new Error('oops!'));
+  function worker (id, work, cb) {
+    cb(new Error('oops!'))
   };
 
-  queue.push({ foo: 'bar' });
-});
+  queue.push({ foo: 'bar' })
+})
 
-test('works with no push callback', function(t) {
-  rimraf.sync(dbPath);
-  var db = level(dbPath);
-  var jobs = Jobs(db, worker);
+test('works with no push callback', function (t) {
+  const db = testLevel()
+  const jobs = Jobs(db, worker)
 
   function worker (id, payload, done) {
-    done();
-    process.nextTick(function() {
-      db.once('closed', t.end.bind(t));
-      db.close();
-    });
+    done()
+    process.nextTick(function () {
+      db.once('closed', t.end.bind(t))
+      db.close()
+    })
   };
 
-  jobs.push({ foo: 'bar' });
-});
+  jobs.push({ foo: 'bar' })
+})
 
-test('has exponential backoff in case of error', function(t) {
-  rimraf.sync(dbPath);
-  var db = level(dbPath);
-  var jobs = Jobs(db, worker);
+test('has exponential backoff in case of error', function (t) {
+  const db = testLevel()
+  const jobs = Jobs(db, worker)
 
   function worker (id, payload, done) {
-    done(new Error('Oh no!'));
+    done(new Error('Oh no!'))
   };
 
-  jobs.once('error', function(err) {
-    t.equal(err.message, 'max retries reached');
-    db.once('closed', t.end.bind(t));
-    db.close();
-  });
+  jobs.once('error', function (err) {
+    t.equal(err.message, 'max retries reached')
+    db.once('closed', t.end.bind(t))
+    db.close()
+  })
 
-  jobs.push({ foo: 'bar' });
-});
+  jobs.push({ foo: 'bar' })
+})
 
-test('can delete job', function(t) {
-  rimraf.sync(dbPath);
-  var db = level(dbPath);
-  var jobs = Jobs(db, worker);
+test('can delete job', function (t) {
+  const db = testLevel()
+  const jobs = Jobs(db, worker)
 
-  var processed = 0;
+  let processed = 0
 
   function worker (id, payload, done) {
-    processed += 1;
-    t.ok(processed <= 1, 'worker is not called 2 times');
+    processed += 1
+    t.ok(processed <= 1, 'worker is not called 2 times')
 
-    jobs.del(job2Id, function(err) {
-      if (err) throw err;
-      done();
-    });
+    jobs.del(job2Id, function (err) {
+      if (err) throw err
+      done()
+    })
 
-    setTimeout(function() {
-      db.once('closed', t.end.bind(t));
-      db.close();
-    }, 500);
+    setTimeout(function () {
+      db.once('closed', t.end.bind(t))
+      db.close()
+    }, 500)
   };
 
-  var job1Id = jobs.push({ foo: 'bar', seq: 1 });
-  t.type(job1Id, 'number');
-  var job2Id = jobs.push({ foo: 'bar', seq: 2 });
-  t.type(job2Id, 'number');
-});
+  const job1Id = jobs.push({ foo: 'bar', seq: 1 })
+  t.type(job1Id, 'number')
+  var job2Id = jobs.push({ foo: 'bar', seq: 2 })
+  t.type(job2Id, 'number')
+})
 
-test('can get runningStream & pendingStream', function(t) {
-  rimraf.sync(dbPath);
-  var db = level(dbPath);
-  var jobs = Jobs(db, worker);
+test('can get runningStream & pendingStream', function (t) {
+  const db = testLevel()
+  const jobs = Jobs(db, worker)
 
-  var works = [
+  const works = [
     { foo: 'bar', seq: 1 },
     { foo: 'bar', seq: 2 },
     { foo: 'bar', seq: 3 }
-  ];
+  ]
 
-  var workIds = [];
+  const workIds = []
 
-  async.each(works, insert, doneInserting);
+  async.each(works, insert, doneInserting)
 
-  function insert(work, done) {
-    workIds.push(jobs.push(work, done).toString());
+  function insert (work, done) {
+    workIds.push(jobs.push(work, done).toString())
   }
 
-  function doneInserting(err) {
-    if (err) throw err;
+  function doneInserting (err) {
+    if (err) throw err
 
-    jobs.runningStream().on('data', onData);
-    jobs.pendingStream().on('data', onData);
+    jobs.runningStream().on('data', onData)
+    jobs.pendingStream().on('data', onData)
 
-    var seq = -1;
-    function onData(d) {
-      seq += 1;
+    let seq = -1
+    function onData (d) {
+      seq += 1
 
-      var id = d.key;
-      var work = d.value;
-      t.equal(id, workIds[seq]);
-      var expected = works[seq];
+      const id = d.key
+      const work = d.value
+      t.equal(id, workIds[seq])
+      const expected = works[seq]
 
-      t.deepEqual(work, expected);
+      t.deepEqual(work, expected)
       if (seq == works.length - 1) {
-        process.nextTick(function() {
-          db.once('closed', t.end.bind(t));
-          db.close();
-        });
+        process.nextTick(function () {
+          db.once('closed', t.end.bind(t))
+          db.close()
+        })
       }
     }
   }
 
-
   function worker (id, payload, done) {
     // do nothing
   };
-});
+})
 
-test('doesn\'t skip past failed tasks', function(t) {
-  rimraf.sync(dbPath);
-  var db = level(dbPath);
+test('doesn\'t skip past failed tasks', function (t) {
+  const db = testLevel()
 
-  var max = 10;
-  var queue = Jobs(db, worker, 1);
+  const max = 10
+  const queue = Jobs(db, worker, 1)
 
-  for (var i = 1; i <= max; i++) {
-    queue.push({ n: i }, pushed);
+  for (let i = 1; i <= max; i++) {
+    queue.push({ n: i }, pushed)
   }
 
-  function pushed(err) {
-    if (err) throw err;
+  function pushed (err) {
+    if (err) throw err
   }
 
-  var erroredOn = {};
-  var count = 0;
-  var next = 1;
-  function worker(id, work, cb) {
+  const erroredOn = {}
+  let count = 0
+  let next = 1
+  let working = false
+  function worker (id, work, cb) {
     // fail every other one
     if (work.n % 2 && !erroredOn[work.n]) {
-      erroredOn[work.n] = true;
-      cb(new Error('oops!'));
+      erroredOn[work.n] = true
+      cb(new Error('oops!'))
     } else {
-      count++;
-      working = true;
+      count++
+      working = true
       t.equal(next++, work.n)
-      cb();
+      cb()
     }
   };
 
-  queue.on('drain', function() {
+  queue.on('drain', function () {
     if (count === max) {
-      t.equal(queue._concurrency, 0);
-      db.once('closed', t.end.bind(t));
-      process.nextTick(function() {
-        db.close();
-      });
+      t.equal(queue._concurrency, 0)
+      db.once('closed', t.end.bind(t))
+      process.nextTick(function () {
+        db.close()
+      })
     }
-  });
-});
+  })
+})
 
-test('continues after close and reopen', function(t) {
-  rimraf.sync(dbPath);
-  var db = level(dbPath);
+test('continues after close and reopen', function (t) {
+  let db = testLevel()
 
-  var max = 10;
-  var restartAfter = max / 2 | 0
-  var queue = Jobs(db, worker, 1)
+  const max = 10
+  const restartAfter = max / 2 | 0
+  let queue = Jobs(db, worker, 1)
 
-  for (var i = 1; i <= max; i++) {
-    queue.push({ n: i }, pushed);
+  for (let i = 1; i <= max; i++) {
+    queue.push({ n: i }, pushed)
   }
 
-  function pushed(err) {
-    if (err) throw err;
+  function pushed (err) {
+    if (err) throw err
   }
 
-  var count = 0;
-  function worker(id, work, cb) {
-    count++;
-    t.equal(work.n, count);
-    cb();
+  let count = 0
+  function worker (id, work, cb) {
+    count++
+    t.equal(work.n, count)
+    cb()
 
     if (count === restartAfter) {
       db.close(function () {
-        db = level(dbPath)
+        db = testLevel()
         queue = Jobs(db, worker, 1)
-        queue.on('drain', function() {
+        queue.on('drain', function () {
           if (count === max) {
-            t.equal(queue._concurrency, 0);
-            db.once('closed', t.end.bind(t));
-            process.nextTick(function() {
-              db.close();
-            });
+            t.equal(queue._concurrency, 0)
+            db.once('closed', t.end.bind(t))
+            process.nextTick(function () {
+              db.close()
+            })
           }
-        });
+        })
       })
     }
   };
-});
+})
