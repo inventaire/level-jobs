@@ -7,7 +7,7 @@ import { EntryStream } from 'level-read-stream'
 
 export default ClientQueue
 
-function ClientQueue (db, worker, options) {
+function ClientQueue (db) {
   assert.strictEqual(typeof db, 'object', 'need db')
   assert.strictEqual(arguments.length, 1, 'cannot define worker on client')
 

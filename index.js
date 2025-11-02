@@ -3,6 +3,7 @@ import Client from './client.js'
 
 // Combine Server and Client
 export default function Jobs (db, worker, options) {
+  // @ts-expect-error
   return mixin(Server(db, worker, options), Client.Queue.prototype)
 }
 
