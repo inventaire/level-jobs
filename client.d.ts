@@ -1,20 +1,20 @@
 import type { EventEmitter } from 'node:events'
 import type { AbstractLevel } from 'abstract-level'
-import type { JobId, JsonEntryStreamOptions, JobWorker, QueueOptions, Callback } from './server.js'
+import type { JobId, JsonEntryStreamOptions } from './server.js'
 import type { EntryStream } from 'level-read-stream'
 
-export interface ClientQueue extends EventEmitter {
-  _db: AbstractLevel
-  _pending: AbstractLevel
-  _work: AbstractLevel
-  push: (payload: unknown, cb?: Callback) => JobId
-  pushBatch: (payloads: unknown[], cb?: Callback) => JobId[]
-  del: (id: JobId, cb?: Callback) => void
-  delBatch: (ids: JobId[], cb?: Callback) => void
-  pendingStream: (options?: JsonEntryStreamOptions) => EntryStream
-  runningStream: (options?: JsonEntryStreamOptions) => EntryStream
+export interface ClientQueue <Payload> extends EventEmitter {
+  _db: AbstractLevel<string, Payload>
+  _pending: AbstractLevel<string, Payload>
+  _work: AbstractLevel<string, Payload>
+  push: (payload: unknown) => JobId
+  pushBatch: (payloads: unknown[]) => JobId[]
+  del: (id: JobId) => void
+  delBatch: (ids: JobId[]) => void
+  pendingStream: (options?: JsonEntryStreamOptions) => EntryStream<string, Payload>
+  runningStream: (options?: JsonEntryStreamOptions) => EntryStream<string, Payload>
 }
 
-declare function ClientQueue <Payload = unknown> (db: AbstractLevel, worker?: JobWorker<Payload>, options?: QueueOptions): ClientQueue
+declare function Client <Payload = unknown>(db: AbstractLevel<string, Payload>): ClientQueue<Payload>
 
-export default ClientQueue
+export default Client

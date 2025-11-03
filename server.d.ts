@@ -5,8 +5,7 @@ import type { WriteStream } from 'node:fs'
 
 export type JobId = string
 export type JsonEntryStreamOptions = ReadStreamOptions & Omit<AbstractIteratorOptions<K, V>, 'keys' | 'values' | 'valueEncoding'>
-export type Callback = () => void
-export type JobWorker <Payload> = (id: JobId, payload: Payload, cb: Callback) => void
+export type JobWorker <Payload> = (id: JobId, payload: Payload) => Promise<void>
 
 export interface QueueOptions {
   maxConcurrency: number,
@@ -30,11 +29,11 @@ interface Hooks {
 
 export interface ServerQueue <Payload> extends EventEmitter {
   _options: Partial<QueueOptions>
-  _db: AbstractLevel
+  _db: AbstractLevel<string, Payload>
   _work: AbstractLevel<string, Payload> & { _hooks: Hooks }
   _workWriteStream: WriteStream
-  _pending: AbstractLevel
-  _worker: worker
+  _pending: AbstractLevel<string, Payload>
+  _worker: JobWorker<Payload>
   _concurrency: number
 
   // Flags
@@ -45,6 +44,6 @@ export interface ServerQueue <Payload> extends EventEmitter {
   _needsDrain: boolean
 }
 
-declare function Jobs <Payload = unknown> (db: AbstractLevel, worker: JobWorker<Payload>, options?: Partial<QueueOptions>): ServerQueue<Payload>
+declare function Jobs <Payload = unknown>(db: AbstractLevel<string, Payload>, worker: JobWorker<Payload>, options?: Partial<QueueOptions>): ServerQueue<Payload>
 
 export default Jobs
