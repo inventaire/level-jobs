@@ -20,14 +20,14 @@ $ npm install level-jobs --save
 ### Create a levelup database
 
 ```javascript
-var levelup = require('levelup');
-var db = levelup('./db')
+import level from 'classic-level'
+const db = level('./db')
 ```
 
-### Require level-jobs
+### Import level-jobs
 
 ```javascript
-var Jobs = require('level-jobs');
+import Jobs from 'level-jobs'
 ```
 
 ### Define a worker function
@@ -35,8 +35,8 @@ var Jobs = require('level-jobs');
 This function will take care of a work unit.
 
 ```javascript
-function worker(id, payload, cb) {
-  doSomething(cb);
+async function worker(id, payload) {
+  await doSomething()
 }
 ```
 
@@ -44,15 +44,13 @@ This function gets 3 arguments:
 
 - `id` uniquely identifies a job to be executed.
 - `payload` contains everyting `worker` need to process the job.
-- `cb` is the callback function that must be called when the job is done.
 
-This callback function accepts an error as the first argument. If an error is provided, the work unit is retried.
-
+If the function throws an error, the work unit is retried.
 
 ### Wrap the database
 
 ```javascript
-var queue = Jobs(db, worker);
+const queue = Jobs(db, worker)
 ```
 
 This database will be at the mercy and control of level-jobs, don't use it for anything else!
@@ -62,8 +60,8 @@ This database will be at the mercy and control of level-jobs, don't use it for a
 You can define a maximum concurrency (the default is `Infinity`):
 
 ```javascript
-var maxConcurrency = 2;
-var queue = Jobs(db, worker, maxConcurrency);
+const maxConcurrency = 2
+const queue = Jobs(db, worker, maxConcurrency)
 ```
 
 ### More Options
@@ -71,7 +69,7 @@ var queue = Jobs(db, worker, maxConcurrency);
 As an alternative the third argument can be an options object with these defaults:
 
 ```javascript
-var options = {
+const options = {
   maxConcurrency: Infinity,
   maxRetries:     10,
   backoff: {
@@ -79,31 +77,35 @@ var options = {
     initialDelay: 10,
     maxDelay: 300
   }
-};
+}
 
-var queue = Jobs(db, worker, options);
+const queue = Jobs(db, worker, options)
 ```
 
 ### Push work to the queue
 
 ```javascript
-var payload = {what: 'ever'};
+const payload = { what: 'ever' }
 
-var jobId = queue.push(payload, function(err) {
-  if (err) console.error('Error pushing work into the queue', err.stack);
-});
+try {
+  const jobId = await queue.push(payload))
+} catch (err) {
+  console.error('Error pushing work into the queue', err.stack)
+}
 ```
 
 or in batch:
 ```javascript
-var payloads = [
-  {what: 'ever'},
-  {what: 'ever'}
-];
+const payloads = [
+  { what: 'ever' },
+  { what: 'ever' }
+]
 
-var jobIds = queue.pushBatch(payloads, function(err) {
-  if (err) console.error('Error pushing works into the queue', err.stack);
-});
+try {
+  const jobIds = await queue.pushBatch(payloads)
+} catch (err) {
+  console.error('Error pushing works into the queue', err.stack)
+}
 ```
 
 ### Delete pending job
@@ -111,16 +113,20 @@ var jobIds = queue.pushBatch(payloads, function(err) {
 (Only works for jobs that haven't started yet!)
 
 ```javascript
-queue.del(jobId, function(err) {
-  if (err) console.error('Error deleting job', err.stack);
-});
+try {
+  await queue.del(jobId)
+} catch (err) {
+  console.error('Error deleting job', err.stack)
+}
 ```
 
 or in batch:
 ```javascript
-queue.delBatch(jobIds, function(err) {
-  if (err) console.error('Error deleting jobs', err.stack);
-});
+try {
+  await queue.delBatch(jobIds)
+} catch (err) {
+  console.error('Error deleting jobs', err.stack)
+}
 ```
 
 ### Traverse jobs
@@ -128,12 +134,12 @@ queue.delBatch(jobIds, function(err) {
 `queue.pendingStream()` emits queued jobs. `queue.runningStream()` emits currently running jobs.
 
 ```javascript
-var stream = queue.pendingStream();
-stream.on('data', function(d) {
-  var jobId = d.key;
-  var work = d.value;
-  console.log('pending job id: %s, work: %j', jobId, work);
-});
+const stream = queue.pendingStream()
+stream.on('data', function (data) {
+  const jobId = data.key
+  const payload = data.value
+  console.log('pending job id: %s, payload: %j', jobId, payload)
+})
 ```
 
 ### Events
@@ -150,14 +156,16 @@ A queue object emits the following event:
 If you simply want a pure queue client that is only able to push jobs into the queue, you can use `level-jobs/client` like this:
 
 ```javascript
-var QueueClient = require('level-jobs/client');
+import QueueClient from 'level-jobs/client'
 
-var client = QueueClient(db);
+const client = QueueClient(db)
 
-client.push(work, function(err) {
-  if (err) throw err;
-  console.log('pushed');
-});
+try {
+  await client.push(work)
+  console.log('pushed')
+} catch (err) {
+  console.error('pushing failed', err)
+}
 ```
 
 ## License
