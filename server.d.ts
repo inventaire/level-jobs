@@ -30,7 +30,7 @@ interface Hooks {
   prehooks: Hook[]
 }
 
-export interface ServerQueue <Payload> extends EventEmitter {
+export interface LevelJobsServer <Payload> extends EventEmitter {
   _options: Partial<QueueOptions>
   _db: JobDb<Payload>
   _work: JobSubDb<Payload> & { _hooks: Hooks }
@@ -47,6 +47,6 @@ export interface ServerQueue <Payload> extends EventEmitter {
   _needsDrain: boolean
 }
 
-declare function Jobs <Payload = unknown>(db: JobDb<Payload>, worker: JobWorker<Payload>, options?: Partial<QueueOptions>): ServerQueue<Payload>
+declare function Jobs <Payload = unknown>(db: JobDb<Payload>, worker: JobWorker<Payload>, options?: Partial<QueueOptions>): LevelJobsServer<Payload>
 
 export default Jobs
