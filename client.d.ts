@@ -7,10 +7,10 @@ export interface LevelJobsClientQueue <Payload> extends EventEmitter {
   _db: AbstractLevel<string, Payload>
   _pending: AbstractLevel<string, Payload>
   _work: AbstractLevel<string, Payload>
-  push: (payload: Payload) => JobId
-  pushBatch: (payloads: Payload[]) => JobId[]
-  del: (id: JobId) => void
-  delBatch: (ids: JobId[]) => void
+  push: (payload: Payload) => Promise<JobId>
+  pushBatch: (payloads: Payload[]) => Promise<JobId[]>
+  del: (id: JobId) => Promise<void>
+  delBatch: (ids: JobId[]) => Promise<void>
   pendingStream: (options?: JsonEntryStreamOptions) => EntryStream<string, Payload>
   runningStream: (options?: JsonEntryStreamOptions) => EntryStream<string, Payload>
 }
