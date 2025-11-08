@@ -1,6 +1,6 @@
 import type { EventEmitter } from 'node:events'
 import type { AbstractLevel } from 'abstract-level'
-import type { JobId, JsonEntryStreamOptions } from './server.js'
+import type { JobId, JsonEntryStreamOptions, JobDb } from './server.js'
 import type { EntryStream } from 'level-read-stream'
 
 export interface ClientQueue <Payload> extends EventEmitter {
@@ -15,6 +15,6 @@ export interface ClientQueue <Payload> extends EventEmitter {
   runningStream: (options?: JsonEntryStreamOptions) => EntryStream<string, Payload>
 }
 
-declare function Client <Payload = unknown>(db: AbstractLevel<string, Payload>): ClientQueue<Payload>
+declare function Client <Payload = unknown>(db: JobDb<Payload>): ClientQueue<Payload>
 
 export default Client

@@ -1,5 +1,5 @@
-import Server from './server.js'
 import Client from './client.js'
+import Server from './server.js'
 
 // Combine Server and Client
 export default function Jobs (db, worker, options) {

@@ -1,11 +1,14 @@
 import type { EventEmitter } from 'node:events'
-import type { AbstractLevel, AbstractIteratorOptions } from 'abstract-level'
+import type { AbstractLevel, AbstractIteratorOptions, AbstractSublevel } from 'abstract-level'
 import type { ReadStreamOptions } from 'level-read-stream'
 import type { WriteStream } from 'node:fs'
 
 export type JobId = string
 export type JsonEntryStreamOptions = ReadStreamOptions & Omit<AbstractIteratorOptions<K, V>, 'keys' | 'values' | 'valueEncoding'>
 export type JobWorker <Payload> = (id: JobId, payload: Payload) => Promise<void>
+
+export type JobSubDb <Payload> = AbstractSublevel<AbstractLevel<unknown, unknown, unknown>, unknown, unknown, Payload>
+export type JobDb <Payload> = AbstractLevel<string, Payload> | JobSubDb<Payload>
 
 export interface QueueOptions {
   maxConcurrency: number,
@@ -29,10 +32,10 @@ interface Hooks {
 
 export interface ServerQueue <Payload> extends EventEmitter {
   _options: Partial<QueueOptions>
-  _db: AbstractLevel<string, Payload>
-  _work: AbstractLevel<string, Payload> & { _hooks: Hooks }
+  _db: JobDb<Payload>
+  _work: JobSubDb<Payload> & { _hooks: Hooks }
   _workWriteStream: WriteStream
-  _pending: AbstractLevel<string, Payload>
+  _pending: JobSubDb<Payload>
   _worker: JobWorker<Payload>
   _concurrency: number
 
@@ -44,6 +47,6 @@ export interface ServerQueue <Payload> extends EventEmitter {
   _needsDrain: boolean
 }
 
-declare function Jobs <Payload = unknown>(db: AbstractLevel<string, Payload>, worker: JobWorker<Payload>, options?: Partial<QueueOptions>): ServerQueue<Payload>
+declare function Jobs <Payload = unknown>(db: JobDb<Payload>, worker: JobWorker<Payload>, options?: Partial<QueueOptions>): ServerQueue<Payload>
 
 export default Jobs
