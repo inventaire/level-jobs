@@ -10,7 +10,7 @@ export type JobWorker <Payload> = (id: JobId, payload: Payload) => Promise<void>
 export type JobSubDb <Payload> = AbstractSublevel<AbstractLevel<unknown, unknown, unknown>, unknown, unknown, Payload>
 export type JobDb <Payload> = AbstractLevel<string, Payload> | JobSubDb<Payload>
 
-export interface QueueOptions {
+export interface LevelJobsOptions {
   maxConcurrency: number,
   maxRetries: number,
   workerTimeout: number
@@ -33,7 +33,7 @@ interface Hooks {
 }
 
 export interface LevelJobsServer <Payload> extends EventEmitter {
-  _options: Partial<QueueOptions>
+  _options: Partial<LevelJobsOptions>
   _db: JobDb<Payload>
   _work: JobSubDb<Payload> & { _hooks: Hooks }
   _workWriteStream: WriteStream
@@ -49,6 +49,6 @@ export interface LevelJobsServer <Payload> extends EventEmitter {
   _needsDrain: boolean
 }
 
-declare function Jobs <Payload = unknown>(db: JobDb<Payload>, worker: JobWorker<Payload>, options?: Partial<QueueOptions>): LevelJobsServer<Payload>
+declare function Jobs <Payload = unknown>(db: JobDb<Payload>, worker: JobWorker<Payload>, options?: Partial<LevelJobsOptions>): LevelJobsServer<Payload>
 
 export default Jobs
