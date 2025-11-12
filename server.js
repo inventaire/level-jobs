@@ -1,11 +1,11 @@
 import assert from 'node:assert'
 import { EventEmitter } from 'node:events'
 import { inherits } from 'node:util'
-import backoff from 'backoff'
 import Hooks from 'level-hooks'
 import { EntryStream } from 'level-read-stream'
 import WriteStream from 'level-write-stream'
 import peek from './peek.js'
+import { setTimeout } from 'node:timers/promises'
 
 const defaultOptions = {
   maxConcurrency: Infinity,
@@ -35,6 +35,7 @@ function Queue (db, worker, options = {}) {
   if (typeof options === 'number') options = { maxConcurrency: options }
   options.backoff = { ...defaultOptions.backoff, ...(options.backoff || {}) }
   options = Object.assign(defaultOptions, options)
+  validateOptions(options)
 
   this._options = options
   this._db = db
@@ -108,12 +109,7 @@ async function poke (q, data) {
       { type: 'del', key, sublevel: q._work },
       { type: 'put', key, value: payload, sublevel: q._pending },
     ])
-    try {
-      await run(q, key, JSON.parse(payload))
-      void doneRunning(q, key)
-    } catch (err) {
-      handleRunError(q, err, key, payload)
-    }
+    await persistentRun(q, key, payload)
   } catch (err) {
     q._needsDrain = true
     q._concurrency--
@@ -121,6 +117,25 @@ async function poke (q, data) {
   }
 
   flush(q)
+}
+
+async function persistentRun (q, key, payload) {
+  async function runWorker (attempts = 0) {
+    try {
+      await q._worker(key, JSON.parse(payload))
+      void doneRunning(q, key)
+    } catch (err) {
+      if (attempts < q._options.maxRetries) {
+        await backoff(attempts, q._options.backoff)
+        q.emit('retry', err)
+        return runWorker(attempts + 1)
+      } else {
+        // Stop trying and drop job
+        q.emit('error', new Error('max retries reached'))
+      }
+    }
+  }
+  await runWorker()
 }
 
 async function doneRunning (q, key) {
@@ -134,32 +149,6 @@ async function doneRunning (q, key) {
   flush(q)
 }
 
-function handleRunError (q, err, key, payload) {
-  const errorBackoff = backoff.exponential(q._options.backoff)
-  errorBackoff.failAfter(q._options.maxRetries)
-
-  errorBackoff.on('ready', async () => {
-    q.emit('retry', err)
-    try {
-      await run(q, key, JSON.parse(payload))
-      void doneRunning(q, key)
-    } catch (err) {
-      // Ignoring error, instead of passing it to `q.emit('error', err)` to not break tests specs
-      errorBackoff.backoff()
-    }
-  })
-
-  errorBackoff.once('fail', () => {
-    q.emit('error', new Error('max retries reached'))
-  })
-
-  errorBackoff.backoff()
-}
-
-async function run (q, id, payload) {
-  return await q._worker(id, payload)
-}
-
 function afterFlushing (q) {
   q._flushing = false
   if (q._needsFlush) {
@@ -168,5 +157,23 @@ function afterFlushing (q) {
   } else if (q._needsDrain) {
     q._needsDrain = false
     q.emit('drain')
+  }
+}
+
+async function backoff (attempts, options) {
+  const baseBackoffDelay = options.initialDelay * 2 ** attempts
+  const randomisationMultiple = 1 + Math.random() * options.randomisationFactor
+  const randomizedDelay = Math.round(baseBackoffDelay * randomisationMultiple)
+  const delay = Math.min(randomizedDelay, options.maxDelay)
+  await setTimeout(delay)
+}
+
+function validateOptions (options) {
+  const { initialDelay, maxDelay, randomisationFactor } = options
+  if (maxDelay <= initialDelay) {
+    throw new Error('The maximal backoff delay must be greater than the initial backoff delay.')
+  }
+  if (randomisationFactor < 0 || randomisationFactor > 1) {
+    throw new Error('The randomisation factor must be between 0 and 1.');
   }
 }

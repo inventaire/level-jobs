@@ -14,6 +14,7 @@ export interface QueueOptions {
   maxConcurrency: number,
   maxRetries: number,
   backoff: {
+    /** Must be between 0 and 1 */
     randomisationFactor: number,
     initialDelay: number,
     maxDelay: number,

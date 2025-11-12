@@ -31,7 +31,6 @@
     "url": "https://github.com/pgte/level-jobs/issues"
   },
   "dependencies": {
-    "backoff": "~2.3.0",
     "json-stringify-safe": "~5.0.0",
     "level-hooks": "~4.5.0",
     "level-read-stream": "^2.0.0",
@@ -39,7 +38,6 @@
     "level-write-stream": "~1.0.0"
   },
   "devDependencies": {
-    "@types/backoff": "^2.5.5",
     "@types/node": "^24.9.2",
     "@types/readable-stream": "^4.0.22",
     "memory-level": "^1.0.0",
