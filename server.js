@@ -47,14 +47,12 @@ function Queue (db, worker, options = {}) {
   this._worker = worker
   this._concurrency = 0
 
-  // flags
   this._starting = true
   this._flushing = false
   this._peeking = false
   this._needsFlush = false
   this._needsDrain = true
 
-  // hooks
   Hooks(this._work)
   this._work.hooks.post(() => {
     maybeFlush(q)
