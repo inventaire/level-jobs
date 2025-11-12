@@ -13,6 +13,7 @@ export type JobDb <Payload> = AbstractLevel<string, Payload> | JobSubDb<Payload>
 export interface QueueOptions {
   maxConcurrency: number,
   maxRetries: number,
+  workerTimeout: number
   backoff: {
     /** Must be between 0 and 1 */
     randomisationFactor: number,

@@ -6,10 +6,12 @@ import { EntryStream } from 'level-read-stream'
 import WriteStream from 'level-write-stream'
 import peek from './peek.js'
 import { setTimeout } from 'node:timers/promises'
+import pTimeout from 'p-timeout'
 
 const defaultOptions = {
   maxConcurrency: Infinity,
   maxRetries: 10,
+  workerTimeout: Infinity,
   backoff: {
     randomisationFactor: 0,
     initialDelay: 10,
@@ -122,7 +124,7 @@ async function poke (q, data) {
 async function persistentRun (q, key, payload) {
   async function runWorker (attempts = 0) {
     try {
-      await q._worker(key, JSON.parse(payload))
+      await pTimeout(q._worker(key, JSON.parse(payload)), { milliseconds: q._options.workerTimeout })
       void doneRunning(q, key)
     } catch (err) {
       if (attempts < q._options.maxRetries) {

@@ -35,7 +35,8 @@
     "level-hooks": "~4.5.0",
     "level-read-stream": "^2.0.0",
     "level-sublevel": "~6.4.6",
-    "level-write-stream": "~1.0.0"
+    "level-write-stream": "~1.0.0",
+    "p-timeout": "^7.0.1"
   },
   "devDependencies": {
     "@types/node": "^24.9.2",

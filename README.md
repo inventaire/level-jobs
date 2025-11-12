@@ -72,6 +72,7 @@ As an alternative the third argument can be an options object with these default
 const options = {
   maxConcurrency: Infinity,
   maxRetries:     10,
+  workerTimeout: Infinity,
   backoff: {
     randomisationFactor: 0,
     initialDelay: 10,

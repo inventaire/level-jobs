@@ -144,6 +144,35 @@ t.test('has exponential backoff in case of error', async t => {
   await promise
 })
 
+t.test('can set worker timeout', async t => {
+  const db = testLevel()
+  const workerTimeout = 10
+  const jobs = Jobs(db, worker, {
+    workerTimeout,
+    maxRetries: 2,
+    backoff: {
+      maxDelay: 0
+    }
+  })
+
+  async function worker () {
+    await wait(10000)
+  }
+
+  await jobs.push({ foo: 'bar' })
+
+  const { promise, resolve } = defer()
+  jobs.once('retry', err => {
+    t.equal(err.name, 'TimeoutError')
+    t.equal(err.message, `Promise timed out after ${workerTimeout} milliseconds`)
+  })
+  jobs.once('error', err => {
+    t.equal(err.message, 'max retries reached')
+    resolve()
+  })
+  await promise
+})
+
 t.test('can delete job', async t => {
   const db = testLevel()
   const jobs = Jobs(db, worker)
