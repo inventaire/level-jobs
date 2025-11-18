@@ -5,12 +5,9 @@ import stringify from 'json-stringify-safe'
 import { EntryStream } from 'level-read-stream'
 import { timestamp } from './timestamp.js'
 
-export default ClientQueue
-
-function ClientQueue (db) {
+export default function ClientQueue (db) {
   assert.strictEqual(typeof db, 'object', 'need db')
   assert.strictEqual(arguments.length, 1, 'cannot define worker on client')
-
   return new Queue(db)
 }
 

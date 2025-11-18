@@ -7,6 +7,9 @@ export type JobId = string
 export type JsonEntryStreamOptions = ReadStreamOptions & Omit<AbstractIteratorOptions<K, V>, 'keys' | 'values' | 'valueEncoding'>
 export type JobWorker <Payload> = (id: JobId, payload: Payload) => Promise<void>
 
+export type BatchJobEntry<Payload> = [ JobId, Payload ]
+export type BatchJobWorker <Payload> = (entries: BatchJobEntry<Payload>[]) => Promise<void>
+
 export type JobSubDb <Payload> = AbstractSublevel<AbstractLevel<unknown, unknown, unknown>, unknown, unknown, Payload>
 export type JobDb <Payload> = AbstractLevel<string, Payload> | JobSubDb<Payload>
 
@@ -14,6 +17,7 @@ export interface LevelJobsOptions {
   maxConcurrency: number,
   maxRetries: number,
   workerTimeout: number
+  batchLength: number
   backoff: {
     /** Must be between 0 and 1 */
     randomisationFactor: number,
@@ -38,7 +42,7 @@ export interface LevelJobsServer <Payload> extends EventEmitter {
   _work: JobSubDb<Payload> & { _hooks: Hooks }
   _workWriteStream: WriteStream
   _pending: JobSubDb<Payload>
-  _worker: JobWorker<Payload>
+  _worker: JobWorker<Payload> | BatchJobWorker<Payload>
   _concurrency: number
 
   // Flags
@@ -49,6 +53,6 @@ export interface LevelJobsServer <Payload> extends EventEmitter {
   _needsDrain: boolean
 }
 
-declare function Jobs <Payload = unknown>(db: JobDb<Payload>, worker: JobWorker<Payload>, options?: Partial<LevelJobsOptions>): LevelJobsServer<Payload>
+declare function Jobs <Payload = unknown>(db: JobDb<Payload>, worker: JobWorker<Payload> | BatchJobWorker<Payload>, options?: Partial<LevelJobsOptions>): LevelJobsServer<Payload>
 
 export default Jobs

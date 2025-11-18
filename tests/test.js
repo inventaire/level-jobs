@@ -11,7 +11,7 @@ t.test('passes job id into worker fn', async t => {
 
   const { promise, resolve } = defer()
 
-  function worker (id) {
+  async function worker (id) {
     t.equal(id, jobId + '')
     resolve()
   }
@@ -30,7 +30,7 @@ t.test('infinite concurrency', async t => {
   }
 
   let count = 0
-  function worker (id, payload) {
+  async function worker (id, payload) {
     count++
     t.equal(payload.n, count)
   }
@@ -79,8 +79,44 @@ t.test('concurrency of 1', async t => {
   await promise
 })
 
+t.test('batch mode', async t => {
+  const db = testLevel()
+
+  let workerCallsCount = 0
+  let workerEntriesCount = 0
+  const max = 10
+  const batchLength = max / 2
+  const queue = Jobs(db, batchWorker, { batchLength })
+
+  for (let i = 1; i <= max; i++) {
+    queue.push({ n: i })
+  }
+
+  async function batchWorker (entries) {
+    workerCallsCount++
+    t.equal(entries.length, batchLength)
+    entries.forEach(([ id, payload ]) => {
+      workerEntriesCount++
+      t.equal(payload.n, workerEntriesCount)
+    })
+  }
+
+  const { promise, resolve } = defer()
+  queue.on('drain', () => {
+    if (workerEntriesCount === max) {
+      t.equal(workerCallsCount, 2)
+      t.equal(queue._concurrency, 0)
+      db.once('closed', resolve)
+      db.close()
+    }
+  })
+  await promise
+})
+
 t.test('retries on error', async t => {
   const db = testLevel()
+  const erroredOn = {}
+  let count = 0
 
   const max = 10
   const queue = Jobs(db, worker)
@@ -89,9 +125,7 @@ t.test('retries on error', async t => {
     await queue.push({ n: i })
   }
 
-  const erroredOn = {}
-  let count = 0
-  function worker (id, payload) {
+  async function worker (id, payload) {
     count++
     if (!erroredOn[payload.n]) {
       erroredOn[payload.n] = true
@@ -113,7 +147,7 @@ t.test('emits retry event on retry', async () => {
   const db = testLevel()
   const queue = Jobs(db, worker)
 
-  function worker () {
+  async function worker () {
     throw new Error('oops!')
   }
   const { promise, resolve, reject } = defer()
@@ -130,7 +164,7 @@ t.test('has exponential backoff in case of error', async t => {
   const db = testLevel()
   const jobs = Jobs(db, worker)
 
-  function worker () {
+  async function worker () {
     throw new Error('Oh no!')
   }
 
@@ -175,9 +209,8 @@ t.test('can set worker timeout', async t => {
 
 t.test('can delete job', async t => {
   const db = testLevel()
-  const jobs = Jobs(db, worker)
-
   let processed = 0
+  const jobs = Jobs(db, worker)
 
   const { promise, resolve } = defer()
   async function worker () {
@@ -230,7 +263,7 @@ t.test('can get runningStream & pendingStream', async t => {
     }
   }
 
-  function worker () {
+  async function worker () {
     // do nothing
   }
 
@@ -239,6 +272,9 @@ t.test('can get runningStream & pendingStream', async t => {
 
 t.test('doesn\'t skip past failed tasks', async t => {
   const db = testLevel()
+  const erroredOn = {}
+  let count = 0
+  let next = 1
 
   const max = 10
   const queue = Jobs(db, worker, 1)
@@ -247,10 +283,7 @@ t.test('doesn\'t skip past failed tasks', async t => {
     await queue.push({ n: i })
   }
 
-  const erroredOn = {}
-  let count = 0
-  let next = 1
-  function worker (id, payload) {
+  async function worker (id, payload) {
     // fail every other one
     if (payload.n % 2 && !erroredOn[payload.n]) {
       erroredOn[payload.n] = true
@@ -276,11 +309,11 @@ t.test('continues after close and reopen', async t => {
 
   const max = 10
   const restartAfter = max / 2 | 0
+  let count = 0
 
   const { promise, resolve } = defer()
 
-  let count = 0
-  function worker (id, payload) {
+  async function worker (id, payload) {
     count++
     t.equal(payload.n, count)
     afterWorker()

@@ -12,6 +12,7 @@ const defaultOptions = Object.freeze({
   maxConcurrency: Infinity,
   maxRetries: 10,
   workerTimeout: Infinity,
+  batchLength: 1,
   backoff: {
     randomisationFactor: 0,
     initialDelay: 10,
@@ -19,12 +20,15 @@ const defaultOptions = Object.freeze({
   },
 })
 
-export default Jobs
-
-function Jobs (db, worker, options) {
+export default function Jobs (db, worker, options) {
   assert.strictEqual(typeof db, 'object', 'need db')
   assert.strictEqual(typeof worker, 'function', 'need worker function')
-
+  if (options?.batchLength > 1) {
+    assert.strictEqual(worker.length, 1, 'worker function in batch mode needs to accept an array of [ jobId, payload ] entries as single argument')
+  } else {
+    // Commented-out as a custom jobId without payload could be enough for the worker
+    // assert.strictEqual(worker.length, 2, 'worker function in non-batch mode needs to accept a jobId and a payload')
+  }
   return new Queue(db, worker, options)
 }
 
@@ -46,6 +50,7 @@ function Queue (db, worker, options = {}) {
   this._pending = db.sublevel('pending')
   this._worker = worker
   this._concurrency = 0
+  this._batchMode = q._options.batchLength > 1
 
   this._starting = true
   this._flushing = false
@@ -86,8 +91,8 @@ async function flush (q) {
     q._peeking = true
     q._flushing = true
     try {
-      const data = await peek(q._work)
-      await poke(q, data)
+      const entries = await peek(q._work, q._options.batchLength)
+      await poke(q, entries)
     } catch (err) {
       q.emit('error', err)
       afterFlushing(q)
@@ -95,21 +100,23 @@ async function flush (q) {
   }
 }
 
-async function poke (q, data) {
+async function poke (q, entries) {
   q._peeking = false
 
-  if (!data) return afterFlushing(q)
+  if (!entries || entries.length === 0) return afterFlushing(q)
 
-  const { key, value: payload } = data
   q._concurrency++
   try {
-    // Using abstract-level >= v1 built in sublevel
-    // See https://github.com/Level/abstract-level/blob/main/UPGRADING.md#9-sublevels-are-builtin
-    await q._db.batch([
-      { type: 'del', key, sublevel: q._work },
-      { type: 'put', key, value: payload, sublevel: q._pending },
-    ])
-    await persistentRun(q, key, payload)
+    const ops = entries.flatMap(({ key, value }) => {
+      return [
+        // Using abstract-level >= v1 built in sublevel
+        // See https://github.com/Level/abstract-level/blob/main/UPGRADING.md#9-sublevels-are-builtin
+        { type: 'del', key, sublevel: q._work },
+        { type: 'put', key, value, sublevel: q._pending },
+      ]
+    })
+    await q._db.batch(ops)
+    await persistentRun(q, entries)
   } catch (err) {
     q._needsDrain = true
     q._concurrency--
@@ -119,11 +126,19 @@ async function poke (q, data) {
   flush(q)
 }
 
-async function persistentRun (q, key, payload) {
+async function persistentRun (q, entries) {
   async function runWorker (attempts = 0) {
     try {
-      await pTimeout(q._worker(key, JSON.parse(payload)), { milliseconds: q._options.workerTimeout })
-      void doneRunning(q, key)
+      if (q._batchMode) {
+        const batchWorkerEntries = entries.map(({ key, value }) => {
+          return [ key, JSON.parse(value)]
+        })
+        await pTimeout(q._worker(batchWorkerEntries), { milliseconds: q._options.workerTimeout })
+      } else {
+        const { key, value: payload } = entries[0]
+        await pTimeout(q._worker(key, JSON.parse(payload)), { milliseconds: q._options.workerTimeout })
+      }
+      void doneRunning(q, entries)
     } catch (err) {
       if (attempts < q._options.maxRetries) {
         await backoff(attempts, q._options.backoff)
@@ -131,18 +146,21 @@ async function persistentRun (q, key, payload) {
         return runWorker(attempts + 1)
       } else {
         // Stop trying and drop job
-        q.emit('error', new Error('max retries reached'))
+        const finalErr = new Error('max retries reached')
+        finalErr.cause = err
+        q.emit('error', finalErr)
       }
     }
   }
   await runWorker()
 }
 
-async function doneRunning (q, key) {
+async function doneRunning (q, entries) {
   q._needsDrain = true
   q._concurrency--
   try {
-    await q._pending.del(key)
+    const ops = entries.map(({ key }) => ({ type: 'del', key }))
+    await q._pending.batch(ops)
   } catch (err) {
     q.emit('error', err)
   }

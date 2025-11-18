@@ -73,6 +73,7 @@ const options = {
   maxConcurrency: Infinity,
   maxRetries:     10,
   workerTimeout: Infinity,
+  batchLength: 1,
   backoff: {
     randomisationFactor: 0,
     initialDelay: 10,
@@ -128,6 +129,26 @@ try {
 } catch (err) {
   console.error('Error deleting jobs', err.stack)
 }
+```
+
+### Worker batch mode
+
+By default, the worker received one job id and payload at a time, but it's also possible to execute jobs in batches:
+```javascript
+async function batchWorker(jobEntries) {
+  await doSomething()
+}
+```
+
+This function gets a single argument: `jobEntries`, which is an array of job ids and payloads tuples.
+
+**To use a batch worker, the queue `batchLength` option MUST be above 1**. For example:
+
+```javascript
+const queue = Jobs(db, batchWorker, {
+  batchLength: 50,
+  maxConcurrency: 5,
+})
 ```
 
 ### Traverse jobs
