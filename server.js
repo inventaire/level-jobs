@@ -8,7 +8,7 @@ import peek from './peek.js'
 import { setTimeout } from 'node:timers/promises'
 import pTimeout from 'p-timeout'
 
-const defaultOptions = {
+const defaultOptions = Object.freeze({
   maxConcurrency: Infinity,
   maxRetries: 10,
   workerTimeout: Infinity,
@@ -17,7 +17,7 @@ const defaultOptions = {
     initialDelay: 10,
     maxDelay: 300,
   },
-}
+})
 
 export default Jobs
 
@@ -36,7 +36,7 @@ function Queue (db, worker, options = {}) {
 
   if (typeof options === 'number') options = { maxConcurrency: options }
   options.backoff = { ...defaultOptions.backoff, ...(options.backoff || {}) }
-  options = Object.assign(defaultOptions, options)
+  options = Object.assign({}, defaultOptions, options)
   validateOptions(options)
 
   this._options = options
