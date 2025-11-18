@@ -27,12 +27,12 @@ const Q = Queue.prototype
 
 Q.push = async function push (payload) {
   const id = timestamp()
-  await this._work.put(id, stringify(payload))
+  await this._work.put(id, stringifyPayload(payload))
   return id
 }
 
 Q.pushWithCustomJobId = async function pushWithCustomJobId (id, payload) {
-  await this._work.put(id, stringify(payload))
+  await this._work.put(id, stringifyPayload(payload))
 }
 
 Q.pushBatch = async function pushBatch (payloads) {
@@ -44,7 +44,7 @@ Q.pushBatch = async function pushBatch (payloads) {
     return {
       type: 'put',
       key: id,
-      value: stringify(payload),
+      value: stringifyPayload(payload),
     }
   })
 
@@ -58,7 +58,7 @@ Q.pushBatchWithCustomJobIds = async function pushBatch (entries) {
     return {
       type: 'put',
       key: id,
-      value: stringify(payload),
+      value: stringifyPayload(payload),
     }
   })
   await this._work.batch(ops)
@@ -87,4 +87,10 @@ Q.runningStream = function runningStream (options) {
   else options = { ...options }
   options.valueEncoding = 'json'
   return new EntryStream(this._work, options)
+}
+
+function stringifyPayload (payload) {
+  // Allow to pass an empty payload, if all the data the job needs is already in the custom job id
+  if (payload != null) return stringify(payload)
+  else return ''
 }

@@ -131,12 +131,12 @@ async function persistentRun (q, entries) {
     try {
       if (q._batchMode) {
         const batchWorkerEntries = entries.map(({ key, value }) => {
-          return [ key, JSON.parse(value)]
+          return [ key, parsePayload(value)]
         })
         await pTimeout(q._worker(batchWorkerEntries), { milliseconds: q._options.workerTimeout })
       } else {
         const { key, value: payload } = entries[0]
-        await pTimeout(q._worker(key, JSON.parse(payload)), { milliseconds: q._options.workerTimeout })
+        await pTimeout(q._worker(key, parsePayload(payload)), { milliseconds: q._options.workerTimeout })
       }
       void doneRunning(q, entries)
     } catch (err) {
@@ -153,6 +153,11 @@ async function persistentRun (q, entries) {
     }
   }
   await runWorker()
+}
+
+function parsePayload (value) {
+  // The payload can be empty, if all the data the job needs is already in the custom job id
+  if (value !== '') return JSON.parse(value)
 }
 
 async function doneRunning (q, entries) {

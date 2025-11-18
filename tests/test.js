@@ -344,3 +344,21 @@ t.test('continues after close and reopen', async t => {
 
   await promise
 })
+
+t.test('empty payload', async t => {
+  const db = testLevel()
+
+  const queue = Jobs(db, worker)
+  const jobId = 'someCustomId'
+  await queue.pushWithCustomJobId(jobId, undefined)
+
+  const { promise, resolve } = defer()
+
+  async function worker (id, payload) {
+    t.equal(id, jobId)
+    t.equal(payload, undefined)
+    resolve()
+  }
+
+  await promise
+})
