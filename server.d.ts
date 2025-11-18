@@ -3,15 +3,14 @@ import type { AbstractLevel, AbstractIteratorOptions, AbstractSublevel } from 'a
 import type { ReadStreamOptions } from 'level-read-stream'
 import type { WriteStream } from 'node:fs'
 
-export type JobId = string
-export type JsonEntryStreamOptions = ReadStreamOptions & Omit<AbstractIteratorOptions<K, V>, 'keys' | 'values' | 'valueEncoding'>
-export type JobWorker <Payload> = (id: JobId, payload: Payload) => Promise<void>
+export type JsonEntryStreamOptions <JobId extends string, Payload> = ReadStreamOptions & Omit<AbstractIteratorOptions<JobId, Payload>, 'keys' | 'values' | 'valueEncoding'>
+export type JobWorker <JobId extends string, Payload> = (id: JobId, payload: Payload) => Promise<void>
 
-export type BatchJobEntry<Payload> = [ JobId, Payload ]
-export type BatchJobWorker <Payload> = (entries: BatchJobEntry<Payload>[]) => Promise<void>
+export type BatchJobEntry<JobId, Payload> = [ JobId, Payload ]
+export type BatchJobWorker <JobId, Payload> = (entries: BatchJobEntry<JobId, Payload>[]) => Promise<void>
 
-export type JobSubDb <Payload> = AbstractSublevel<AbstractLevel<unknown, unknown, unknown>, unknown, unknown, Payload>
-export type JobDb <Payload> = AbstractLevel<string, Payload> | JobSubDb<Payload>
+export type JobSubDb <JobId extends string, Payload> = AbstractSublevel<AbstractLevel<unknown, JobId, Payload>, unknown, JobId, Payload>
+export type JobDb <JobId extends string, Payload> = AbstractLevel<JobId, Payload> | JobSubDb<JobId, Payload>
 
 export interface LevelJobsOptions {
   maxConcurrency: number,
@@ -36,13 +35,13 @@ interface Hooks {
   prehooks: Hook[]
 }
 
-export interface LevelJobsServer <Payload> extends EventEmitter {
+export interface LevelJobsServer <JobId extends string, Payload> extends EventEmitter {
   _options: Partial<LevelJobsOptions>
-  _db: JobDb<Payload>
-  _work: JobSubDb<Payload> & { _hooks: Hooks }
+  _db: JobDb<JobId, Payload>
+  _work: JobSubDb<JobId, Payload> & { _hooks: Hooks }
   _workWriteStream: WriteStream
-  _pending: JobSubDb<Payload>
-  _worker: JobWorker<Payload> | BatchJobWorker<Payload>
+  _pending: JobSubDb<JobId, Payload>
+  _worker: JobWorker<JobId, Payload> | BatchJobWorker<JobId, Payload>
   _concurrency: number
 
   // Flags
@@ -53,6 +52,10 @@ export interface LevelJobsServer <Payload> extends EventEmitter {
   _needsDrain: boolean
 }
 
-declare function Jobs <Payload = unknown>(db: JobDb<Payload>, worker: JobWorker<Payload> | BatchJobWorker<Payload>, options?: Partial<LevelJobsOptions>): LevelJobsServer<Payload>
+declare function Jobs <JobId extends string, Payload = unknown> (
+  db: JobDb<JobId, Payload>,
+  worker: JobWorker<JobId, Payload> | BatchJobWorker<JobId, Payload>,
+  options?: Partial<LevelJobsOptions>
+): LevelJobsServer<JobId, Payload>
 
 export default Jobs
