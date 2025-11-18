@@ -2,6 +2,7 @@ import t from 'tap'
 import ClientJobs from '../client.js'
 import Jobs from '../index.js'
 import { defer, testLevel } from './utils.js'
+import assert from 'node:assert'
 
 t.test('can insert and delete job', async t => {
   const db = testLevel()
@@ -64,6 +65,63 @@ t.test('can insert and delete jobs in batches', async t => {
 
   jobBatchIds.forEach(id => {
     t.type(id, 'number')
+  })
+
+  await promise
+})
+
+t.test('can insert job with custom id', async t => {
+  const db = testLevel()
+  const clientQueue = ClientJobs(db)
+  const { promise, resolve } = defer()
+
+  const batch = [
+    [ 'a', { foo: 'bar', seq: 1 } ],
+    [ 'b', { foo: 'bar', seq: 2 } ],
+    [ 'c', { foo: 'bar', seq: 3 } ],
+  ]
+
+  for (const [ id, payload ] of batch) {
+    await clientQueue.pushWithCustomJobId(id, payload)
+  }
+
+  const entries = []
+  clientQueue.runningStream({})
+  .on('data', entry => entries.push(entry))
+  .on('end', () => {
+    let i = 0
+    for (const [ key, value ] of batch) {
+      assert.deepEqual(entries[i++], { key, value })
+    }
+    resolve()
+  })
+
+  await promise
+})
+
+
+t.test('can insert jobs in batches with custom ids', async t => {
+  const db = testLevel()
+  const clientQueue = ClientJobs(db)
+  const { promise, resolve } = defer()
+
+  const batch = [
+    [ 'a', { foo: 'bar', seq: 1 } ],
+    [ 'b', { foo: 'bar', seq: 2 } ],
+    [ 'c', { foo: 'bar', seq: 3 } ],
+  ]
+
+  await clientQueue.pushBatchWithCustomJobIds(batch)
+
+  const entries = []
+  clientQueue.runningStream({})
+  .on('data', entry => entries.push(entry))
+  .on('end', () => {
+    let i = 0
+    for (const [ key, value ] of batch) {
+      assert.deepEqual(entries[i++], { key, value })
+    }
+    resolve()
   })
 
   await promise

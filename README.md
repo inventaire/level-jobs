@@ -110,6 +110,33 @@ try {
 }
 ```
 
+or with a custom job id (for instance, to customize works execution order, or use a determistic id to avoid creating duplicate jobs):
+```javascript
+const payload = { what: 'ever' }
+
+try {
+  const jobId = 'abc123'
+  await queue.pushWithCustomJobId(jobId, payload))
+} catch (err) {
+  console.error('Error pushing work into the queue', err.stack)
+}
+```
+
+which can also be done in batch:
+```javascript
+const payload = { what: 'ever' }
+
+try {
+  const jobs = [
+    [ 'abc123', payload ],
+    [ 'efg456', payload ],
+  ]
+  await queue.pushBatchWithCustomJobIds(jobs))
+} catch (err) {
+  console.error('Error pushing work into the queue', err.stack)
+}
+```
+
 ### Delete pending job
 
 (Only works for jobs that haven't started yet!)

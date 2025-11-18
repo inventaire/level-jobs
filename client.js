@@ -31,6 +31,10 @@ Q.push = async function push (payload) {
   return id
 }
 
+Q.pushWithCustomJobId = async function pushWithCustomJobId (id, payload) {
+  await this._work.put(id, stringify(payload))
+}
+
 Q.pushBatch = async function pushBatch (payloads) {
   const ids = []
 
@@ -47,6 +51,17 @@ Q.pushBatch = async function pushBatch (payloads) {
   await this._work.batch(ops)
 
   return ids
+}
+
+Q.pushBatchWithCustomJobIds = async function pushBatch (entries) {
+  const ops = entries.map(([ id, payload ]) => {
+    return {
+      type: 'put',
+      key: id,
+      value: stringify(payload),
+    }
+  })
+  await this._work.batch(ops)
 }
 
 Q.del = async function del (id) {
