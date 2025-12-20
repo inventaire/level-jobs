@@ -70,6 +70,12 @@ inherits(Queue, EventEmitter)
 
 function start (q) {
   const ws = q._workWriteStream()
+  // level-write-stream will call `stream.once("_drain", callback)` for each entry in q._pending
+  // which would triggering a MaxListenersExceededWarning without this custom value.
+  // As it uses `once`, the event listeners are not at risk of creating a memory leak
+  // See https://nodejs.org/api/events.html#emittersetmaxlistenersn
+  // and https://www.dhiwise.com/post/best-practices-for-handling-maxlistenersexceededwarning
+  ws.setMaxListeners(Infinity)
   new EntryStream(q._pending).pipe(ws)
   ws.once('finish', done)
 
