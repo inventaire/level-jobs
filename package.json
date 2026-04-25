@@ -1,5 +1,5 @@
 {
-  "name": "level-jobs",
+  "name": "@inventaire/level-jobs",
   "version": "3.1.0",
   "description": "Job Queue in LevelDB",
   "main": "index.js",
@@ -8,9 +8,14 @@
   "scripts": {
     "test": "tap tests/test.js tests/client.js"
   },
+  "files": [
+    "*.js",
+    "*.ts",
+    "*.md"
+  ],
   "repository": {
     "type": "git",
-    "url": "git://github.com/pgte/level-jobs.git"
+    "url": "git://github.com/inventaire/level-jobs.git"
   },
   "keywords": [
     "leveldb",
@@ -24,11 +29,15 @@
     "Lars-Magnus Skog <ralphtheninja@riseup.net>",
     "Jannis Redmann <mail@jannisr.de>",
     "Ash",
-    "Mark Vayngrib <mark@tradle.io>"
+    "Mark Vayngrib <mark@tradle.io>",
+    "maxlath"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/pgte/level-jobs/issues"
+    "url": "https://github.com/inventaire/level-jobs/issues"
   },
   "dependencies": {
     "json-stringify-safe": "~5.0.0",
