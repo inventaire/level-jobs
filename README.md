@@ -79,6 +79,7 @@ const options = {
     initialDelay: 10,
     maxDelay: 300
   }
+  // preWorker: async () => {} // No preWorker hook set by default, but you can set one, for instance to wait for worker dependencies without this time being counted in the workerTimeout
 }
 
 const queue = Jobs(db, worker, options)

@@ -135,6 +135,7 @@ async function poke (q, entries) {
 async function persistentRun (q, entries) {
   async function runWorker (attempts = 0) {
     try {
+      if (q._options.preWorker) await q._options.preWorker()
       if (q._batchMode) {
         const batchWorkerEntries = entries.map(({ key, value }) => {
           return [ key, parsePayload(value)]

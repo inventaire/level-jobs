@@ -16,6 +16,7 @@ export interface LevelJobsOptions {
   maxConcurrency: number,
   maxRetries: number,
   workerTimeout: number
+  preWorker: () => Promise<void>
   batchLength: number
   backoff: {
     /** Must be between 0 and 1 */

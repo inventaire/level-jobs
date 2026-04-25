@@ -207,6 +207,44 @@ t.test('can set worker timeout', async t => {
   await promise
 })
 
+t.test('can set pre-worker hook, not counted in worker timeout', async t => {
+  const db = testLevel()
+  const workerTimeout = 10
+
+  const queue = Jobs(db, worker, {
+    preWorker,
+    workerTimeout,
+    maxRetries: 2,
+    backoff: {
+      maxDelay: 0
+    }
+  })
+
+  let preWorkerCount = 0
+  async function worker (id, payload) {
+    workerCount++
+  }
+
+  let workerCount = 0
+  async function preWorker () {
+    await wait(workerTimeout * 5)
+    preWorkerCount++
+  }
+
+  const { promise, resolve } = defer()
+
+  await queue.push({ foo: 'bar' })
+
+  queue.on('drain', () => {
+    t.equal(preWorkerCount, 1)
+    t.equal(workerCount, 1)
+    db.once('closed', resolve)
+    db.close()
+  })
+
+  await promise
+})
+
 t.test('can delete job', async t => {
   const db = testLevel()
   let processed = 0
