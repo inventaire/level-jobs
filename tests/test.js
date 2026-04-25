@@ -162,16 +162,16 @@ t.test('emits retry event on retry', async () => {
 
 t.test('has exponential backoff in case of error', async t => {
   const db = testLevel()
-  const jobs = Jobs(db, worker)
+  const queue = Jobs(db, worker)
 
   async function worker () {
     throw new Error('Oh no!')
   }
 
-  await jobs.push({ foo: 'bar' })
+  await queue.push({ foo: 'bar' })
 
   const { promise, resolve } = defer()
-  jobs.once('error', err => {
+  queue.once('error', err => {
     t.equal(err.message, 'max retries reached')
     resolve()
   })
@@ -181,7 +181,7 @@ t.test('has exponential backoff in case of error', async t => {
 t.test('can set worker timeout', async t => {
   const db = testLevel()
   const workerTimeout = 10
-  const jobs = Jobs(db, worker, {
+  const queue = Jobs(db, worker, {
     workerTimeout,
     maxRetries: 2,
     backoff: {
@@ -193,14 +193,14 @@ t.test('can set worker timeout', async t => {
     await wait(10000)
   }
 
-  await jobs.push({ foo: 'bar' })
+  await queue.push({ foo: 'bar' })
 
   const { promise, resolve } = defer()
-  jobs.once('retry', err => {
+  queue.once('retry', err => {
     t.equal(err.name, 'TimeoutError')
     t.equal(err.message, `Promise timed out after ${workerTimeout} milliseconds`)
   })
-  jobs.once('error', err => {
+  queue.once('error', err => {
     t.equal(err.message, 'max retries reached')
     resolve()
   })
@@ -248,19 +248,19 @@ t.test('can set pre-worker hook, not counted in worker timeout', async t => {
 t.test('can delete job', async t => {
   const db = testLevel()
   let processed = 0
-  const jobs = Jobs(db, worker)
+  const queue = Jobs(db, worker)
 
   const { promise, resolve } = defer()
   async function worker () {
     processed += 1
     t.ok(processed <= 1, 'worker is not called 2 times')
-    await jobs.del(job2Id)
+    await queue.del(job2Id)
     resolve()
   }
 
-  const job1Id = await jobs.push({ foo: 'bar', seq: 1 })
+  const job1Id = await queue.push({ foo: 'bar', seq: 1 })
   t.type(job1Id, 'number')
-  const job2Id = await jobs.push({ foo: 'bar', seq: 2 })
+  const job2Id = await queue.push({ foo: 'bar', seq: 2 })
   t.type(job2Id, 'number')
 
   await promise
@@ -268,7 +268,7 @@ t.test('can delete job', async t => {
 
 t.test('can get runningStream & pendingStream', async t => {
   const db = testLevel()
-  const jobs = Jobs(db, worker)
+  const queue = Jobs(db, worker)
 
   const payloads = [
     { foo: 'bar', seq: 1 },
@@ -277,12 +277,12 @@ t.test('can get runningStream & pendingStream', async t => {
   ]
 
   const workIds = await Promise.all(payloads.map(async payload => {
-    const jobId = await jobs.push(payload)
+    const jobId = await queue.push(payload)
     return jobId.toString()
   }))
 
-  jobs.runningStream().on('data', onData)
-  jobs.pendingStream().on('data', onData)
+  queue.runningStream().on('data', onData)
+  queue.pendingStream().on('data', onData)
 
   const { promise, resolve } = defer()
 
