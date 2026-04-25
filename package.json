@@ -1,6 +1,6 @@
 {
   "name": "level-jobs",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Job Queue in LevelDB",
   "main": "index.js",
   "type": "module",
